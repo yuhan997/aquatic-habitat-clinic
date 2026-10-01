@@ -1,0 +1,1946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>水景医官｜草缸AI生态诊断与智能调控系统</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --deep-blue: #004e70;
+  --lake-blue: #007ea7;
+  --water-blue: #48cae4;
+  --grass-green: #2b9348;
+  --light-green: #b7e4c7;
+  --warn-orange: #E8A33D;
+  --danger-red: #C0504D;
+  --bg-page: #f7fcff;
+  --card-bg: #ffffff;
+  --text-main: #1d3557;
+  --text-sub: #5c6c75;
+  --border-line: #d6e8ed;
+}
+
+html { scroll-behavior:smooth; }
+
+body {
+  font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+  background: var(--bg-page);
+  color: var(--text-main);
+  line-height:1.8;
+  overflow-x:hidden;
+  position:relative;
+}
+
+/* ========== 全局水景背景 ========== */
+.water-bg {
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(72,202,228,0.18), transparent 45%),
+    radial-gradient(circle at 85% 75%, rgba(43,147,72,0.12), transparent 45%),
+    linear-gradient(180deg,#eaf6fb 0%,#f7fcff 45%,#eef9f0 100%);
+}
+.water-bg::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    radial-gradient(circle at 10% 30%, rgba(255,255,255,.6) 1px, transparent 2px),
+    radial-gradient(circle at 40% 60%, rgba(255,255,255,.5) 1px, transparent 2px),
+    radial-gradient(circle at 75% 25%, rgba(255,255,255,.5) 1px, transparent 2px),
+    radial-gradient(circle at 90% 80%, rgba(255,255,255,.5) 1px, transparent 2px);
+  background-size: 220px 220px, 320px 320px, 280px 280px, 380px 380px;
+  animation: particleDrift 40s linear infinite;
+  opacity:.7;
+}
+@keyframes particleDrift {
+  from { background-position: 0 0, 0 0, 0 0, 0 0; }
+  to   { background-position: 220px -220px, -320px -320px, 280px -280px, -380px -380px; }
+}
+
+.bg-bubbles { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden; }
+.bg-bubble {
+  position:absolute;
+  bottom:-60px;
+  border-radius:50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(72,202,228,.35));
+  animation: floatUp linear infinite;
+  opacity:0;
+}
+@keyframes floatUp {
+  0%   { transform: translateY(0) translateX(0) scale(.6); opacity:0; }
+  10%  { opacity:.55; }
+  50%  { transform: translateY(-45vh) translateX(20px) scale(1); }
+  90%  { opacity:.35; }
+  100% { transform: translateY(-105vh) translateX(-20px) scale(1.1); opacity:0; }
+}
+
+.bg-fish {
+  position:fixed;
+  z-index:-1;
+  font-size:26px;
+  opacity:.22;
+  pointer-events:none;
+  filter: drop-shadow(0 4px 8px rgba(0,126,167,.25));
+}
+.fish-a { top:22%; animation: swimRight 32s linear infinite; }
+.fish-b { top:58%; font-size:20px; animation: swimRight 44s linear infinite 6s; }
+.fish-c { top:78%; font-size:32px; animation: swimLeft 50s linear infinite 3s; }
+@keyframes swimRight {
+  0%   { left:-8%;  transform: translateY(0) scaleX(1) rotate(0deg); }
+  25%  { transform: translateY(-16px) scaleX(1) rotate(-3deg); }
+  50%  { transform: translateY(10px) scaleX(1) rotate(2deg); }
+  75%  { transform: translateY(-10px) scaleX(1) rotate(-2deg); }
+  100% { left:108%; transform: translateY(0) scaleX(1) rotate(0deg); }
+}
+@keyframes swimLeft {
+  0%   { right:-8%; left:auto; transform: translateY(0) scaleX(-1); }
+  50%  { transform: translateY(-18px) scaleX(-1); }
+  100% { right:108%; left:auto; transform: translateY(0) scaleX(-1); }
+}
+
+/* ========== 水藻层 ========== */
+.bg-algae {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 200px;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.algae {
+  position: absolute;
+  bottom: -10px;
+  transform-origin: bottom center;
+  border-radius: 50% 50% 0 0 / 65% 65% 0 0;
+  background: linear-gradient(to top,
+    rgba(43,147,72,.65) 0%,
+    rgba(72,202,228,.35) 55%,
+    rgba(183,228,199,.1) 100%);
+  animation: algaeSway ease-in-out infinite alternate;
+  filter: blur(0.4px);
+  box-shadow: inset 0 0 12px rgba(43,147,72,.25);
+}
+@keyframes algaeSway {
+  from { transform: rotate(-7deg) skewX(-5deg); }
+  to   { transform: rotate(7deg)  skewX(5deg);  }
+}
+
+.container { max-width:1200px; margin:0 auto; padding:0 24px; }
+
+/* ========== 导航栏 ========== */
+nav {
+  background: rgba(255,255,255,.72);
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  border-bottom:1px solid rgba(214,232,237,.7);
+  position:sticky; top:0; z-index:99;
+  transition: box-shadow .3s ease, background .3s ease;
+}
+nav.scrolled {
+  box-shadow:0 6px 24px rgba(0,78,112,.1);
+  background: rgba(255,255,255,.92);
+}
+.nav-inner {
+  display:flex; justify-content:space-between; align-items:center; height:64px;
+}
+.logo {
+  font-size:18px; font-weight:bold; color:var(--deep-blue);
+  display:flex; align-items:center; gap:8px;
+}
+.logo::before {
+  content:"💧";
+  font-size:20px;
+  animation: dropBounce 2.4s ease-in-out infinite;
+}
+@keyframes dropBounce {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.logo span { color:var(--grass-green); font-weight:normal; font-size:14px; margin-left:6px; }
+.nav-menu { display:flex; gap:26px; list-style:none; }
+.nav-menu a {
+  text-decoration:none; color:var(--text-main); font-size:14px;
+  position:relative; transition:color .3s;
+}
+.nav-menu a::after {
+  content:"";
+  position:absolute; left:50%; bottom:-6px;
+  width:0; height:2px;
+  background: linear-gradient(90deg, var(--lake-blue), var(--grass-green));
+  transform: translateX(-50%);
+  transition: width .35s ease;
+  border-radius:2px;
+}
+.nav-menu a:hover { color: var(--lake-blue); }
+.nav-menu a:hover::after { width:100%; }
+
+/* ========== Banner ========== */
+header {
+  position:relative;
+  overflow:hidden;
+  color:#fff;
+  padding:110px 0 150px;
+  text-align:center;
+  background:
+    linear-gradient(135deg, rgba(0,78,112,.92), rgba(0,126,167,.85) 45%, rgba(43,147,72,.85)),
+    url("https://images.unsplash.com/photo-1524704654690-b56c41c0488b?auto=format&fit=crop&w=1600&q=80");
+  background-size:cover;
+  background-position:center;
+}
+header::before {
+  content:"";
+  position:absolute; inset:-50%;
+  background: radial-gradient(circle at 30% 30%, rgba(72,202,228,.35), transparent 45%),
+              radial-gradient(circle at 70% 70%, rgba(183,228,199,.3), transparent 45%);
+  animation: auroraShift 18s ease-in-out infinite alternate;
+  pointer-events:none;
+}
+@keyframes auroraShift {
+  0%   { transform: translate(0,0) scale(1); }
+  100% { transform: translate(6%, -4%) scale(1.1); }
+}
+.header-bubbles { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.header-bubbles span {
+  position:absolute; bottom:-40px;
+  border-radius:50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(255,255,255,.15));
+  animation: headerBubble linear infinite;
+  opacity:0;
+}
+@keyframes headerBubble {
+  0%   { transform: translateY(0) scale(.5); opacity:0; }
+  20%  { opacity:.75; }
+  100% { transform: translateY(-560px) scale(1.15); opacity:0; }
+}
+header h1 {
+  font-size:44px; margin-bottom:16px; letter-spacing:2px;
+  position:relative; z-index:1;
+  text-shadow: 0 4px 24px rgba(0,0,0,.25);
+  opacity:0; animation: fadeUp 1s ease .1s forwards;
+}
+header h1 span {
+  display:block; font-size:20px; letter-spacing:4px;
+  color: var(--light-green); margin-top:10px; font-weight:normal;
+}
+header p {
+  font-size:17px; max-width:760px; margin:0 auto;
+  position:relative; z-index:1; color: rgba(255,255,255,.92);
+  opacity:0; animation: fadeUp 1s ease .35s forwards;
+}
+.header-tags {
+  margin-top:30px; display:flex; justify-content:center; gap:12px;
+  flex-wrap:wrap; position:relative; z-index:1;
+  opacity:0; animation: fadeUp 1s ease .6s forwards;
+}
+.tag {
+  background: rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.4);
+  padding:8px 20px; border-radius:999px; font-size:13.5px;
+  backdrop-filter: blur(6px);
+  transition: transform .3s ease, background .3s ease;
+}
+.tag:hover {
+  transform: translateY(-3px) scale(1.04);
+  background: rgba(255,255,255,.28);
+}
+.header-waves {
+  position:absolute; left:0; right:0; bottom:-2px;
+  height:110px; overflow:hidden; pointer-events:none;
+}
+.wave-track {
+  display:flex; width:200%; height:100%;
+  animation: waveSlide 14s linear infinite;
+}
+.wave-track.slow { animation-duration: 22s; animation-direction: reverse; opacity:.55; }
+.wave-track svg { width:50%; height:100%; flex:0 0 50%; }
+@keyframes waveSlide {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+/* ========== 通用区块 ========== */
+.section-wrap { padding:78px 0; position:relative; }
+
+.section-title {
+  text-align:center; margin-bottom:52px;
+  transform: translateY(30px); opacity:0;
+  transition: all .8s cubic-bezier(.2,.7,.3,1);
+}
+.section-title.active { transform: translateY(0); opacity:1; }
+.section-title h2 {
+  font-size:30px; color:var(--deep-blue); margin-bottom:14px;
+  position:relative; display:inline-block;
+}
+.section-title h2::after {
+  content:"";
+  position:absolute; left:50%; bottom:-10px;
+  width:0; height:3px; border-radius:3px;
+  background: linear-gradient(90deg, var(--lake-blue), var(--grass-green));
+  transform: translateX(-50%);
+  transition: width .9s ease .3s;
+}
+.section-title.active h2::after { width:70%; }
+.section-title p { color:var(--text-sub); max-width:720px; margin:0 auto; }
+
+.reveal {
+  opacity:0;
+  transform: translateY(36px);
+  transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.3,1);
+}
+.reveal.active { opacity:1; transform: translateY(0); }
+
+/* ========== 卡片 ========== */
+.card {
+  background: var(--card-bg);
+  border:1px solid var(--border-line);
+  border-radius:18px;
+  padding:30px;
+  position:relative;
+  overflow:hidden;
+  transition: transform .45s cubic-bezier(.2,.7,.3,1), box-shadow .45s ease, border-color .45s ease;
+}
+.card::before {
+  content:"";
+  position:absolute; inset:0;
+  background: linear-gradient(135deg, rgba(72,202,228,.12), rgba(43,147,72,.08));
+  opacity:0; transition: opacity .45s ease;
+  pointer-events:none;
+}
+.card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 42px rgba(0,126,167,.18);
+  border-color: rgba(72,202,228,.55);
+}
+.card:hover::before { opacity:1; }
+
+/* ========== 项目背景 ========== */
+.bg-block {
+  background:#fff;
+  border-left:5px solid var(--grass-green);
+  border-radius:18px;
+  padding:38px;
+  box-shadow:0 10px 30px rgba(0,78,112,.08);
+  position:relative; overflow:hidden;
+}
+.bg-block::after {
+  content:"";
+  position:absolute; right:-60px; top:-60px;
+  width:180px; height:180px; border-radius:50%;
+  background: radial-gradient(circle, rgba(72,202,228,.18), transparent 70%);
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+@keyframes pulseGlow {
+  0%,100% { transform: scale(1); opacity:.7; }
+  50% { transform: scale(1.25); opacity:1; }
+}
+.bg-block h3 { color:var(--deep-blue); margin-bottom:14px; font-size:22px; }
+
+.problem-list {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr));
+  gap:16px; margin-top:24px;
+}
+.problem-item {
+  background: linear-gradient(135deg,#f1faee,#e8f6f8);
+  padding:22px; border-radius:14px;
+  border-left:4px solid #e63946;
+  font-size:14.5px;
+  transition: transform .35s ease, box-shadow .35s ease;
+}
+.problem-item:hover {
+  transform: translateX(6px);
+  box-shadow: 0 8px 22px rgba(230,57,70,.13);
+}
+.problem-item strong { color:#c0392b; }
+
+/* ========== 水质仪表盘 ========== */
+.dashboard-wrap {
+  background:#fff; border-radius:24px; padding:40px;
+  box-shadow:0 12px 36px rgba(0,78,112,.09);
+}
+.dashboard-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+  gap:26px;
+}
+.data-card {
+  background: linear-gradient(145deg,#f4fbff,#e6f5f8);
+  border-radius:18px; padding:24px 18px;
+  text-align:center;
+  transition: transform .4s ease, box-shadow .4s ease;
+  position:relative; overflow:hidden;
+}
+.data-card::before {
+  content:"";
+  position:absolute; inset:0;
+  background: radial-gradient(circle at 50% 0%, rgba(72,202,228,.22), transparent 65%);
+  opacity:0; transition: opacity .4s;
+}
+.data-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 16px 34px rgba(0,126,167,.18);
+}
+.data-card:hover::before { opacity:1; }
+.data-card h4 {
+  color:var(--deep-blue); margin-bottom:10px; font-size:15px;
+  position:relative; z-index:1;
+}
+
+.gauge { position:relative; width:140px; height:140px; margin:0 auto; }
+.gauge svg { width:100%; height:100%; transform: rotate(-90deg); }
+.gauge-bg {
+  fill:none; stroke:#d6e8ed; stroke-width:9;
+}
+.gauge-fill {
+  fill:none;
+  stroke: url(#gaugeGradient);
+  stroke-width:9;
+  stroke-linecap:round;
+  transition: stroke-dashoffset 1.6s cubic-bezier(.2,.7,.3,1);
+  filter: drop-shadow(0 0 6px rgba(72,202,228,.5));
+}
+.gauge-center {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  pointer-events:none;
+}
+.data-value {
+  font-size:28px; font-weight:bold;
+  background: linear-gradient(135deg, var(--lake-blue), var(--grass-green));
+  -webkit-background-clip: text;
+  background-clip: text; color: transparent;
+  line-height:1.1;
+}
+.data-unit { font-size:12.5px; color:var(--text-sub); margin-top:2px; }
+
+/* ========== AI 视觉识别 ========== */
+.ai-card-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr));
+  gap:20px;
+}
+.ai-item {
+  background:#fff; border-radius:16px; padding:26px 20px;
+  text-align:center; border:1px solid var(--border-line);
+  transition: transform .4s ease, box-shadow .4s ease, border-color .4s ease;
+  position:relative; overflow:hidden;
+}
+.ai-item .emoji {
+  font-size:34px; display:inline-block;
+  transition: transform .4s ease;
+}
+.ai-item:hover {
+  transform: translateY(-8px);
+  border-color: rgba(72,202,228,.6);
+  box-shadow: 0 16px 34px rgba(72,202,228,.18);
+}
+.ai-item:hover .emoji { transform: scale(1.2) rotate(-8deg); }
+.ai-item h4 { color:var(--deep-blue); margin:10px 0 8px; font-size:16px; }
+.ai-item .desc { font-size:13px; color:#6b7a85; }
+
+/* ========== 风险分级 ========== */
+.risk-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr));
+  gap:20px;
+}
+.risk-card {
+  border-radius:16px; overflow:hidden;
+  transition: transform .4s ease, box-shadow .4s ease;
+}
+.risk-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 18px 38px rgba(0,0,0,.12);
+}
+.risk-header { padding:12px 16px; color:#fff; font-weight:bold; font-size:15px; }
+.risk-body { padding:18px; font-size:14px; line-height:1.75; }
+.risk-green .risk-header { background: linear-gradient(90deg, #2b9348, #52b788); }
+.risk-green .risk-body   { background:#EBF5E4; }
+.risk-yellow .risk-header{ background: linear-gradient(90deg, #E8A33D, #f4c06a); }
+.risk-yellow .risk-body  { background:#FDF3E2; }
+.risk-red .risk-header   { background: linear-gradient(90deg, #C0504D, #e07a76); }
+.risk-red .risk-body     { background:#FBE9E9; }
+
+/* ========== 系统架构 ========== */
+.system-svg-wrap {
+  background:#fff; border-radius:22px; padding:34px; text-align:center;
+  box-shadow:0 12px 34px rgba(0,78,112,.08);
+}
+svg { max-width:100%; }
+
+/* ========== 硬件模块 ========== */
+.hardware-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr));
+  gap:24px;
+}
+.hardware-item {
+  background:#fff; border-radius:18px; padding:30px 24px;
+  text-align:center; border:1px solid var(--border-line);
+  transition: transform .45s cubic-bezier(.2,.7,.3,1), box-shadow .45s, border-color .45s;
+  position:relative;
+}
+.hardware-item:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(72,202,228,.2);
+  border-color: var(--water-blue);
+}
+.hardware-icon {
+  font-size:42px; margin-bottom:14px;
+  display:inline-block;
+  transition: transform .5s cubic-bezier(.2,.7,.3,1);
+}
+.hardware-item:hover .hardware-icon {
+  transform: translateY(-6px) rotate(8deg) scale(1.15);
+}
+.hardware-item h4 { color:var(--deep-blue); margin-bottom:10px; font-size:17px; }
+.hardware-item p { font-size:13.5px; color:var(--text-sub); }
+
+/* ========== 工作流程 ========== */
+.flow-container {
+  background:#fff; border-radius:22px; padding:44px 40px;
+  border:1px solid var(--border-line);
+  box-shadow:0 12px 34px rgba(0,78,112,.08);
+}
+.flow-steps {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr));
+  gap:18px; margin-top:32px;
+}
+.step { text-align:center; position:relative; }
+.step-num {
+  width:54px; height:54px; border-radius:50%;
+  background: linear-gradient(135deg, var(--lake-blue), var(--grass-green));
+  color:#fff; font-size:19px; font-weight:bold;
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto 16px;
+  box-shadow: 0 8px 20px rgba(0,126,167,.3);
+  transition: transform .4s ease, box-shadow .4s ease;
+}
+.step:hover .step-num {
+  transform: scale(1.14) translateY(-4px);
+  box-shadow: 0 12px 28px rgba(43,147,72,.4);
+}
+.step h4 { font-size:15px; color:var(--deep-blue); margin-bottom:6px; }
+.step p { font-size:13px; color:var(--text-sub); }
+.step.offline .step-num {
+  background: linear-gradient(135deg,#86909c,#bcc2c8);
+  box-shadow:none;
+}
+.offline-tip {
+  background:#eef1f5; border-radius:12px; padding:14px 18px;
+  margin-bottom:22px; color:#4e5969; font-size:14px;
+  border-left:4px solid #86909c;
+}
+
+/* ========== 防控报告 ========== */
+.report-wrap {
+  background:#fff; border-radius:22px; padding:34px;
+  border:1px solid var(--border-line);
+  box-shadow:0 12px 34px rgba(0,78,112,.08);
+}
+.report-content {
+  background: linear-gradient(135deg,#f0faff,#eefaf1);
+  padding:26px; border-radius:14px;
+  border-left:4px solid var(--lake-blue);
+  font-size:14.5px;
+}
+.report-content h4 { margin-bottom:12px; color:var(--deep-blue); font-size:16px; }
+
+/* ========== 对比表格 ========== */
+.compare-table {
+  width:100%; border-collapse:collapse; background:#fff;
+  border-radius:16px; overflow:hidden;
+  box-shadow:0 12px 34px rgba(0,78,112,.09);
+}
+.compare-table th {
+  background: linear-gradient(135deg, var(--deep-blue), var(--lake-blue));
+  color:#fff; padding:16px; text-align:center; font-weight:600;
+}
+.compare-table td {
+  padding:14px; text-align:center;
+  border-bottom:1px solid var(--border-line);
+  font-size:14.5px;
+}
+.compare-table tr:nth-child(even) { background:#f7fcff; }
+.compare-table tr { transition: background .3s; }
+.compare-table tbody tr:hover { background:#e8f6f8; }
+.advantage { color:#2b9348; font-weight:bold; }
+
+/* ========== 适用场景 ========== */
+.scene-block {
+  background: linear-gradient(135deg,#eaf6f8,#f0faf4);
+  border-radius:22px; padding:52px 34px; text-align:center;
+  border:1px solid var(--border-line);
+  position:relative; overflow:hidden;
+}
+.scene-icons {
+  margin-top:30px; display:flex; justify-content:center;
+  gap:48px; flex-wrap:wrap;
+}
+.scene-icon {
+  font-size:40px; display:inline-block;
+  transition: transform .45s cubic-bezier(.2,.7,.3,1);
+  cursor:default;
+}
+.scene-icon:hover {
+  transform: translateY(-10px) scale(1.25) rotate(-8deg);
+  filter: drop-shadow(0 8px 16px rgba(0,126,167,.35));
+}
+
+/* ========== 互动体验水缸 ========== */
+.tank-wrap {
+  background:#fff; border-radius:24px; padding:24px;
+  box-shadow:0 12px 36px rgba(0,78,112,.09);
+}
+.tank-controls {
+  display:flex; gap:24px; align-items:center; flex-wrap:wrap;
+  margin-bottom:18px; padding:14px 18px;
+  background:linear-gradient(135deg,#f0faff,#e8f6f8);
+  border-radius:14px;
+}
+.ctrl-item {
+  display:flex; align-items:center; gap:10px;
+  font-size:14px; color:var(--text-main);
+}
+.ctrl-item label { font-weight:600; color:var(--deep-blue); }
+.ctrl-item input[type="range"] {
+  width:140px; accent-color:var(--lake-blue); cursor:pointer;
+}
+.ctrl-item span {
+  font-size:13px; color:var(--text-sub);
+  min-width:46px; text-align:right;
+  font-variant-numeric: tabular-nums;
+}
+.music-btn {
+  margin-left:auto; padding:8px 20px;
+  border-radius:999px; border:1px solid var(--border-line);
+  background:#fff; color:var(--deep-blue);
+  font-size:14px; cursor:pointer;
+  transition:all .3s; font-family:inherit;
+}
+.music-btn:hover {
+  border-color:var(--lake-blue);
+  transform:translateY(-2px);
+  box-shadow:0 6px 16px rgba(0,126,167,.15);
+}
+.music-btn.on {
+  background:linear-gradient(135deg, var(--lake-blue), var(--grass-green));
+  color:#fff; border-color:transparent;
+}
+.tank-stage {
+  position:relative; height:420px;
+  border-radius:18px; overflow:hidden;
+  cursor:crosshair;
+  box-shadow: inset 0 0 40px rgba(0,78,112,.25);
+}
+.tank-stage canvas { display:block; width:100%; height:100%; }
+.tank-hint {
+  position:absolute; left:14px; bottom:12px;
+  color:#fff; font-size:12.5px;
+  background:rgba(0,0,0,.28); padding:6px 14px;
+  border-radius:999px; backdrop-filter:blur(6px);
+  pointer-events:none; z-index:2;
+}
+@media (max-width:600px) {
+  .tank-controls { gap:12px; }
+  .ctrl-item input[type="range"] { width:90px; }
+  .music-btn { margin-left:0; }
+  .tank-stage { height:320px; }
+}
+/* ========== 页脚 ========== */
+footer {
+  background: linear-gradient(135deg, var(--deep-blue), #006b91);
+  color:#fff; text-align:center; padding:34px 0; margin-top:48px;
+  position:relative; overflow:hidden;
+}
+footer::before {
+  content:"";
+  position:absolute; inset:0;
+  background: radial-gradient(circle at 20% 100%, rgba(72,202,228,.28), transparent 55%),
+              radial-gradient(circle at 80% 0%, rgba(43,147,72,.22), transparent 55%);
+}
+footer p { position:relative; z-index:1; font-size:14px; opacity:.92; }
+
+/* ========== 关键帧 ========== */
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(24px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+
+/* ========== 响应式 ========== */
+@media (max-width:900px) {
+  .nav-menu { display:none; }
+  header { padding:90px 0 120px; }
+  header h1 { font-size:30px; }
+  header h1 span { font-size:16px; letter-spacing:2px; }
+  header p { font-size:15px; padding:0 12px; }
+  .section-title h2 { font-size:24px; }
+  .dashboard-wrap, .flow-container, .report-wrap, .bg-block { padding:26px 20px; }
+  .scene-block { padding:36px 22px; }
+  .scene-icons { gap:28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- 全局水景背景 -->
+<div class="water-bg"></div>
+<div class="bg-bubbles" id="bgBubbles"></div>
+<div class="bg-fish fish-a">🐠</div>
+<div class="bg-fish fish-b">🐟</div>
+<div class="bg-fish fish-c">🐠</div>
+
+<!-- 缸底水藻层 -->
+<div class="bg-algae" id="bgAlgae"></div>
+
+<!-- SVG 渐变定义 -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#48cae4"/>
+      <stop offset="100%" stop-color="#2b9348"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- 导航 -->
+<nav id="navbar">
+  <div class="container nav-inner">
+    <div class="logo">水景医官<span>草缸AI生态诊断与调控系统</span></div>
+    <ul class="nav-menu">
+      <li><a href="#background">项目背景</a></li>
+      <li><a href="#dashboard">水质监测</a></li>
+      <li><a href="#ai-vision">AI视觉诊断</a></li>
+      <li><a href="#risk">分级处置</a></li>
+      <li><a href="#arch">系统架构</a></li>
+      <li><a href="#hardware">硬件组成</a></li>
+      <li><a href="#workflow">工作流程</a></li>
+      <li><a href="#report">防控报告</a></li>
+      <li><a href="#interactive">互动体验</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Banner -->
+<header>
+  <div class="header-bubbles" id="headerBubbles"></div>
+  <div class="container" style="position:relative;z-index:2;">
+    <h1>水景医官<span>草缸AI生态诊断与智能调控系统</span></h1>
+    <p>面向家庭造景缸的多目标AI视觉生态诊断与协同调控，融合水质检测、鱼病识别、水草健康诊断，自动执行光照、增氧、液肥补给，生成生态防控报告。</p>
+    <div class="header-tags">
+      <span class="tag">水温 / pH / 溶氧 / NO₃</span>
+      <span class="tag">AI鱼病&水草识别</span>
+      <span class="tag">光照+氧气泵调控</span>
+      <span class="tag">分级自动处置</span>
+      <span class="tag">生态防控报告输出</span>
+    </div>
+  </div>
+
+  <div class="header-waves">
+    <div class="wave-track slow">
+      <svg viewBox="0 0 1440 110" preserveAspectRatio="none">
+        <path d="M0,60 C180,100 360,20 540,60 C720,100 900,20 1080,60 C1260,100 1440,20 1440,60 L1440,110 L0,110 Z"
+              fill="rgba(247,252,255,0.35)"/>
+      </svg>
+      <svg viewBox="0 0 1440 110" preserveAspectRatio="none">
+        <path d="M0,60 C180,100 360,20 540,60 C720,100 900,20 1080,60 C1260,100 1440,20 1440,60 L1440,110 L0,110 Z"
+              fill="rgba(247,252,255,0.35)"/>
+      </svg>
+    </div>
+    <div class="wave-track" style="position:absolute;left:0;bottom:0;width:200%;height:100%;">
+      <svg viewBox="0 0 1440 110" preserveAspectRatio="none">
+        <path d="M0,70 C180,30 360,110 540,70 C720,30 900,110 1080,70 C1260,30 1440,110 1440,70 L1440,110 L0,110 Z"
+              fill="#f7fcff"/>
+      </svg>
+      <svg viewBox="0 0 1440 110" preserveAspectRatio="none">
+        <path d="M0,70 C180,30 360,110 540,70 C720,30 900,110 1080,70 C1260,30 1440,110 1440,70 L1440,110 L0,110 Z"
+              fill="#f7fcff"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<!-- 项目背景 -->
+<section id="background" class="section-wrap">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>项目背景</h2>
+      <p>传统草缸养护依赖人工经验，无法同时监测水质、水草状态、鱼类健康，病害、爆藻发现滞后，缺少自动调控与标准化诊断方案。</p>
+    </div>
+    <div class="bg-block reveal">
+      <h3>痛点分析</h3>
+      <p>传统家庭水族造景缸养护依靠人眼观察、经验判断，很难同时兼顾水质参数、水草生长、鱼类健康状态。</p>
+      <div class="problem-list">
+        <div class="problem-item">
+          <strong>水质异常难发现</strong><br>
+          水温、溶氧、pH、硝酸盐变化无法实时感知，容易造成鱼只应激。
+        </div>
+        <div class="problem-item">
+          <strong>鱼病识别滞后</strong><br>
+          白点、烂鳍、水霉等症状早期难以察觉，错过最佳干预时间。
+        </div>
+        <div class="problem-item">
+          <strong>水草状态误判</strong><br>
+          黄化、溶叶、徒长等问题无法量化，施肥时机与剂量难以把控。
+        </div>
+        <div class="problem-item">
+          <strong>缺少自动调控</strong><br>
+          缺氧、爆藻预警后需要人工手动操作，无法自动开启增氧、调整光照。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- 实时水质监测面板 -->
+<section id="dashboard" class="section-wrap" style="background:linear-gradient(180deg,rgba(247,252,255,0),rgba(232,246,248,.6),rgba(247,252,255,0));">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>实时水质监测面板（模拟数据）</h2>
+      <p>采集核心水质指标：水温、溶解氧、pH值、硝酸盐NO₃⁻、磷酸盐PO₄³⁻、钾离子K⁺，作为系统诊断基础依据。</p>
+    </div>
+    <div class="dashboard-wrap reveal">
+      <div class="dashboard-grid" id="dashboardGrid">
+
+        <div class="data-card">
+          <h4>水温</h4>
+          <div class="gauge">
+            <svg viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="52"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="52"
+                      stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                      data-target="0.50"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="data-value" data-value="24.5" data-decimals="1">0</span>
+              <span class="data-unit">℃</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="data-card">
+          <h4>溶解氧 DO</h4>
+          <div class="gauge">
+            <svg viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="52"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="52"
+                      stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                      data-target="0.49"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="data-value" data-value="6.8" data-decimals="1">0</span>
+              <span class="data-unit">mg/L</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="data-card">
+          <h4>pH值</h4>
+          <div class="gauge">
+            <svg viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="52"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="52"
+                      stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                      data-target="0.51"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="data-value" data-value="7.2" data-decimals="1">0</span>
+              <span class="data-unit">pH</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="data-card">
+          <h4>硝酸盐 NO₃⁻</h4>
+          <div class="gauge">
+            <svg viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="52"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="52"
+                      stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                      data-target="0.30"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="data-value" data-value="15" data-decimals="0">0</span>
+              <span class="data-unit">mg/L</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="data-card">
+          <h4>磷酸盐 PO₄³⁻</h4>
+          <div class="gauge">
+            <svg viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="52"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="52"
+                      stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                      data-target="0.27"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="data-value" data-value="0.8" data-decimals="1">0</span>
+              <span class="data-unit">mg/L</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="data-card">
+          <h4>钾离子 K⁺</h4>
+          <div class="gauge">
+            <svg viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="52"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="52"
+                      stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                      data-target="0.30"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="data-value" data-value="12" data-decimals="0">0</span>
+              <span class="data-unit">mg/L</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AI视觉诊断模块 -->
+<section id="ai-vision" class="section-wrap">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>AI视觉识别诊断</h2>
+      <p>基于 YOLOv8 多目标检测，同时识别鱼病症状、水草健康状态与藻类爆发，实现视觉层面的早期预警。</p>
+    </div>
+    <div class="ai-card-grid">
+      <div class="ai-item reveal">
+        <span class="emoji">🐟</span>
+        <h4>鱼病症状识别</h4>
+        <div class="desc">白点、烂鳍、水霉、立鳞等常见病症自动检测</div>
+      </div>
+      <div class="ai-item reveal">
+        <span class="emoji">🌿</span>
+        <h4>水草健康诊断</h4>
+        <div class="desc">黄化、溶叶、徒长、缺素症状量化分析</div>
+      </div>
+      <div class="ai-item reveal">
+        <span class="emoji">🦠</span>
+        <h4>藻类爆发预警</h4>
+        <div class="desc">绿藻、黑毛藻、丝藻等识别与覆盖度评估</div>
+      </div>
+      <div class="ai-item reveal">
+        <span class="emoji">👁️</span>
+        <h4>鱼只行为分析</h4>
+        <div class="desc">浮头、躲藏、游姿异常等应激行为识别</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 风险分级处置 -->
+<section id="risk" class="section-wrap" style="background:linear-gradient(180deg,rgba(247,252,255,0),rgba(240,250,244,.7),rgba(247,252,255,0));">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>风险分级处置</h2>
+      <p>根据症状与水质的综合评估，系统自动划分绿/黄/红三级风险，并执行对应的处置策略。</p>
+    </div>
+    <div class="risk-grid">
+      <div class="risk-card risk-green reveal">
+        <div class="risk-header">🟢 绿色 · 正常</div>
+        <div class="risk-body">
+          各项指标处于健康区间，系统持续监测记录，维持光照与水流参数，无需干预。
+        </div>
+      </div>
+      <div class="risk-card risk-yellow reveal">
+        <div class="risk-header">🟡 黄色 · 关注</div>
+        <div class="risk-body">
+          单项指标轻度偏离，系统自动微调光照时长、增氧频率，并推送提醒至网页与日志。
+        </div>
+      </div>
+      <div class="risk-card risk-red reveal">
+        <div class="risk-header">🔴 红色 · 紧急</div>
+        <div class="risk-body">
+          多项指标异常或检出明显病症，立即启动应急处置：增氧、停食、投药、生成防控报告并报警。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 系统架构 -->
+<section id="arch" class="section-wrap">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>系统架构</h2>
+      <p>从感知层到决策层再到执行层，构建完整的草缸智能生态闭环。</p>
+    </div>
+    <div class="system-svg-wrap reveal">
+      <svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="archGrad1" x1="0%" x2="100%">
+            <stop offset="0%" stop-color="#007ea7"/>
+            <stop offset="100%" stop-color="#48cae4"/>
+          </linearGradient>
+          <linearGradient id="archGrad2" x1="0%" x2="100%">
+            <stop offset="0%" stop-color="#2b9348"/>
+            <stop offset="100%" stop-color="#b7e4c7"/>
+          </linearGradient>
+          <linearGradient id="archGrad3" x1="0%" x2="100%">
+            <stop offset="0%" stop-color="#004e70"/>
+            <stop offset="100%" stop-color="#007ea7"/>
+          </linearGradient>
+        </defs>
+
+        <rect x="30" y="110" width="180" height="80" rx="14" fill="url(#archGrad1)" opacity="0.9"/>
+        <text x="120" y="145" text-anchor="middle" fill="#fff" font-size="16" font-weight="bold">感知层</text>
+        <text x="120" y="168" text-anchor="middle" fill="#eaf6fb" font-size="12">摄像头 / 水质传感器</text>
+
+        <rect x="360" y="110" width="180" height="80" rx="14" fill="url(#archGrad2)" opacity="0.9"/>
+        <text x="450" y="145" text-anchor="middle" fill="#fff" font-size="16" font-weight="bold">决策层</text>
+        <text x="450" y="168" text-anchor="middle" fill="#eaf6fb" font-size="12">YOLOv8 / 专家知识库</text>
+
+        <rect x="690" y="110" width="180" height="80" rx="14" fill="url(#archGrad3)" opacity="0.9"/>
+        <text x="780" y="145" text-anchor="middle" fill="#fff" font-size="16" font-weight="bold">执行层</text>
+        <text x="780" y="168" text-anchor="middle" fill="#eaf6fb" font-size="12">蠕动泵 / 光照 / 增氧</text>
+
+        <line x1="210" y1="150" x2="360" y2="150" stroke="#48cae4" stroke-width="3" stroke-dasharray="6 6">
+          <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="1.2s" repeatCount="indefinite"/>
+        </line>
+        <line x1="540" y1="150" x2="690" y2="150" stroke="#2b9348" stroke-width="3" stroke-dasharray="6 6">
+          <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="1.2s" repeatCount="indefinite"/>
+        </line>
+
+        <path d="M780 190 Q 450 280 120 190" fill="none" stroke="#007ea7" stroke-width="2" stroke-dasharray="5 6" opacity="0.6">
+          <animate attributeName="stroke-dashoffset" from="0" to="-22" dur="1.6s" repeatCount="indefinite"/>
+        </path>
+        <text x="450" y="262" text-anchor="middle" fill="#5c6c75" font-size="12">状态反馈 · 日志记录 · 网页刷新</text>
+      </svg>
+    </div>
+  </div>
+</section>
+<!-- 硬件模块 -->
+<section id="hardware" class="section-wrap" style="background:linear-gradient(180deg,rgba(247,252,255,0),rgba(232,246,248,.6),rgba(247,252,255,0));">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>硬件组成</h2>
+      <p>核心硬件模块协同工作，完成从感知、计算到执行的完整链路。</p>
+    </div>
+    <div class="hardware-grid">
+      <div class="hardware-item reveal">
+        <div class="hardware-icon">📷</div>
+        <h4>摄像头模组</h4>
+        <p>高清鱼眼摄像头，实时采集缸内画面，供 YOLOv8 模型推理识别。</p>
+      </div>
+      <div class="hardware-item reveal">
+        <div class="hardware-icon">🧪</div>
+        <h4>水质传感器</h4>
+        <p>水温、pH、溶氧、NO₃⁻、PO₄³⁻、K⁺ 多参数采集，实时回传数据。</p>
+      </div>
+      <div class="hardware-item reveal">
+        <div class="hardware-icon">🖥️</div>
+        <h4>主控计算单元</h4>
+        <p>运行视觉推理、专家知识库与调度逻辑，支持边缘部署。</p>
+      </div>
+      <div class="hardware-item reveal">
+        <div class="hardware-icon">💊</div>
+        <h4>蠕动泵 & 药剂通道</h4>
+        <p>多通道药剂自动选择，按标定时长定量投加液肥与药剂。</p>
+      </div>
+      <div class="hardware-item reveal">
+        <div class="hardware-icon">💡</div>
+        <h4>光照控制系统</h4>
+        <p>自动调节光照强度与时长，抑制爆藻、促进水草生长。</p>
+      </div>
+      <div class="hardware-item reveal">
+        <div class="hardware-icon">🫧</div>
+        <h4>增氧泵模块</h4>
+        <p>溶氧异常时自动开启增氧，配合继电器实现精准控制。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 工作流程 -->
+<section id="workflow" class="section-wrap">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>工作流程</h2>
+      <p>从图像采集与标注，到 YOLOv8 训练部署，再到自动加药与日志刷新，全流程闭环。</p>
+    </div>
+    <div class="flow-container reveal">
+      <div class="offline-tip">💡 提示：模型训练为离线环节，部署后推理与调控为在线实时执行。</div>
+      <div class="flow-steps">
+        <div class="step offline">
+          <div class="step-num">1</div>
+          <h4>图像采集标注</h4>
+          <p>采集症状样本并人工标注</p>
+        </div>
+        <div class="step offline">
+          <div class="step-num">2</div>
+          <h4>YOLOv8 训练</h4>
+          <p>训练/验证并导出部署模型</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h4>视觉推理</h4>
+          <p>摄像头端识别异常症状</p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h4>水质采集</h4>
+          <p>传感器读取水质参数</p>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <h4>病因推理</h4>
+          <p>专家知识库综合推理</p>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <h4>自动加药</h4>
+          <p>匹配通道，定量投加</p>
+        </div>
+        <div class="step">
+          <div class="step-num">7</div>
+          <h4>记录刷新</h4>
+          <p>写入日志并刷新网页</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 防控报告 -->
+<section id="report" class="section-wrap" style="background:linear-gradient(180deg,rgba(247,252,255,0),rgba(240,250,244,.7),rgba(247,252,255,0));">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>生态防控报告</h2>
+      <p>系统自动生成标准化防控报告，记录症状、病因、处置过程与效果评估。</p>
+    </div>
+    <div class="report-wrap reveal">
+      <div class="report-content">
+        <h4>📋 报告示例</h4>
+        <p><strong>检测时间：</strong>2025-xx-xx 14:30</p>
+        <p><strong>视觉识别：</strong>鹦鹉鱼尾鳍边缘白化，置信度 92.4%</p>
+        <p><strong>水质数据：</strong>水温 24.5℃、溶氧 6.8 mg/L、pH 7.2、NO₃⁻ 15 mg/L</p>
+        <p><strong>推理病因：</strong>疑似早期烂鳍，与水流水质轻度恶化相关</p>
+        <p><strong>处置建议：</strong>启动通道 2，按 8 秒标定时长投加抗菌药剂；临时提升增氧</p>
+        <p><strong>执行结果：</strong>加药完成，已写入日志并刷新网页状态</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 对比表格 -->
+<section class="section-wrap">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>方案对比</h2>
+      <p>与传统人工养护方式对比，本方案在实时性、准确性与自动化程度上具备明显优势。</p>
+    </div>
+    <div class="reveal">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>对比维度</th>
+            <th>传统人工养护</th>
+            <th>水景医官系统</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>水质监测</td>
+            <td>凭经验、偶尔测量</td>
+            <td class="advantage">多参数实时采集</td>
+          </tr>
+          <tr>
+            <td>病症识别</td>
+            <td>人眼观察，易漏判</td>
+            <td class="advantage">YOLOv8 视觉自动识别</td>
+          </tr>
+          <tr>
+            <td>病因推理</td>
+            <td>依赖个人经验</td>
+            <td class="advantage">专家知识库综合推理</td>
+          </tr>
+          <tr>
+            <td>加药处置</td>
+            <td>手动估量，误差大</td>
+            <td class="advantage">按标定时长定量投加</td>
+          </tr>
+          <tr>
+            <td>记录管理</td>
+            <td>手写或缺失</td>
+            <td class="advantage">自动日志 + 网页同步</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 适用场景 -->
+<section class="section-wrap">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>适用场景</h2>
+      <p>覆盖家庭草缸、水族门店、教学实验等多种场景。</p>
+    </div>
+    <div class="scene-block reveal">
+      <h3 style="color:var(--deep-blue);font-size:20px;">面向家庭与小型水族场景</h3>
+      <p style="color:var(--text-sub);margin-top:10px;">无需专业经验，即可实现草缸生态的智能诊断与自动调控。</p>
+      <div class="scene-icons">
+        <span class="scene-icon">🏠</span>
+        <span class="scene-icon">🏪</span>
+        <span class="scene-icon">🎓</span>
+        <span class="scene-icon">🔬</span>
+        <span class="scene-icon">🐠</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 互动体验 -->
+<section id="interactive" class="section-wrap" style="background:linear-gradient(180deg,rgba(247,252,255,0),rgba(232,246,248,.6),rgba(247,252,255,0));">
+  <div class="container">
+    <div class="section-title reveal">
+      <h2>互动体验 · 草缸模拟</h2>
+      <p>调节水位与光照，点击投喂饲料，感受鱼群与草缸环境的实时互动。</p>
+    </div>
+    <!-- 背景音乐 -->
+    
+    <div class="tank-wrap reveal">
+      <div class="tank-controls">
+        <div class="ctrl-item">
+          <label>💧 水位</label>
+          <input type="range" id="waterLevelCtrl" min="20" max="100" value="80">
+          <span id="waterLevelVal">80%</span>
+        </div>
+        <div class="ctrl-item">
+          <label>☀️ 光照</label>
+          <input type="range" id="lightCtrl" min="0" max="100" value="80">
+          <span id="lightVal">80%</span>
+        </div>
+        <button id="musicToggle" class="music-btn">🎵 音乐 关</button>
+      </div>
+      <div class="tank-stage" id="tankStage">
+        <canvas id="tankCanvas"></canvas>
+        <div class="tank-hint">🖱️ 移动划水 · 👆 点击投喂</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>水景医官 · 草缸AI生态诊断与智能调控系统 &nbsp;|&nbsp; 让每一缸水景都被温柔守护</p>
+  </div>
+</footer>
+
+<script>
+/* ========== 导航栏滚动阴影 ========== */
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 20);
+});
+
+/* ========== 生成背景气泡 ========== */
+(function createBubbles() {
+  const wrap = document.getElementById('bgBubbles');
+  const count = 18;
+  for (let i = 0; i < count; i++) {
+    const b = document.createElement('span');
+    b.className = 'bg-bubble';
+    const size = 6 + Math.random() * 18;
+    b.style.width = size + 'px';
+    b.style.height = size + 'px';
+    b.style.left = Math.random() * 100 + '%';
+    b.style.animationDuration = (12 + Math.random() * 14) + 's';
+    b.style.animationDelay = (Math.random() * 14) + 's';
+    wrap.appendChild(b);
+  }
+})();
+
+/* ========== 生成 Banner 气泡 ========== */
+(function createHeaderBubbles() {
+  const wrap = document.getElementById('headerBubbles');
+  for (let i = 0; i < 22; i++) {
+    const b = document.createElement('span');
+    const size = 4 + Math.random() * 14;
+    b.style.width = size + 'px';
+    b.style.height = size + 'px';
+    b.style.left = Math.random() * 100 + '%';
+    b.style.animationDuration = (7 + Math.random() * 9) + 's';
+    b.style.animationDelay = (Math.random() * 10) + 's';
+    wrap.appendChild(b);
+  }
+})();
+
+/* ========== 生成缸底水藻 ========== */
+(function createAlgae() {
+  const wrap = document.getElementById('bgAlgae');
+  if (!wrap) return;
+  const count = 16;
+  for (let i = 0; i < count; i++) {
+    const a = document.createElement('div');
+    a.className = 'algae';
+    const w = 5 + Math.random() * 12;
+    const h = 60 + Math.random() * 130;
+    a.style.width = w + 'px';
+    a.style.height = h + 'px';
+    a.style.left = Math.random() * 100 + '%';
+    a.style.animationDuration = (2.5 + Math.random() * 2.8) + 's';
+    a.style.animationDelay = (Math.random() * 3) + 's';
+    a.style.opacity = 0.22 + Math.random() * 0.35;
+    wrap.appendChild(a);
+  }
+})();
+
+/* ========== 滚动显隐 IntersectionObserver ========== */
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('active');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+
+document.querySelectorAll('.reveal, .section-title').forEach(el => {
+  revealObserver.observe(el);
+});
+
+/* ========== 数字滚动 & 环形进度动画 ========== */
+function animateNumber(el, target, duration = 1600, decimals = 0) {
+  const startTime = performance.now();
+  function tick(now) {
+    const p = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = (target * eased).toFixed(decimals);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+const CIRCUMFERENCE = 2 * Math.PI * 52;
+
+const dashObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const grid = entry.target;
+
+    grid.querySelectorAll('.data-card').forEach((card, idx) => {
+      const valEl = card.querySelector('.data-value');
+      const fillEl = card.querySelector('.gauge-fill');
+      const target = parseFloat(valEl.dataset.value);
+      const decimals = parseInt(valEl.dataset.decimals || 0, 10);
+      const ratio = parseFloat(fillEl.dataset.target);
+
+      setTimeout(() => {
+        animateNumber(valEl, target, 1600, decimals);
+        fillEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - ratio);
+      }, idx * 120);
+    });
+
+    dashObserver.unobserve(grid);
+  });
+}, { threshold: 0.25 });
+
+const grid = document.getElementById('dashboardGrid');
+if (grid) dashObserver.observe(grid);
+
+/* ========== 仪表盘数据动态刷新（模拟） ========== */
+const gaugeConfigs = [
+  { sel: '.data-card:nth-child(1)', base: 24.5, range: 0.8,  decimals: 1, min: 22,  max: 27 },
+  { sel: '.data-card:nth-child(2)', base: 6.8,  range: 0.4,  decimals: 1, min: 5,   max: 8 },
+  { sel: '.data-card:nth-child(3)', base: 7.2,  range: 0.15, decimals: 1, min: 6.5, max: 7.8 },
+  { sel: '.data-card:nth-child(4)', base: 15,   range: 2,    decimals: 0, min: 5,   max: 30 },
+  { sel: '.data-card:nth-child(5)', base: 0.8,  range: 0.15, decimals: 1, min: 0.2, max: 2 },
+  { sel: '.data-card:nth-child(6)', base: 12,   range: 1.5,  decimals: 0, min: 5,   max: 20 }
+];
+
+gaugeConfigs.forEach(cfg => {
+  const card = document.querySelector(cfg.sel);
+  cfg.el = card.querySelector('.data-value');
+  cfg.fill = card.querySelector('.gauge-fill');
+  cfg.current = cfg.base;
+  cfg.target = cfg.base;
+});
+
+setInterval(() => {
+  gaugeConfigs.forEach(cfg => {
+    const delta = (Math.random() - 0.5) * 2 * cfg.range;
+    let next = cfg.current + delta;
+    next = Math.max(cfg.min, Math.min(cfg.max, next));
+    cfg.target = next;
+  });
+}, 2000);
+
+function tickGauge() {
+  gaugeConfigs.forEach(cfg => {
+    cfg.current += (cfg.target - cfg.current) * 0.08;
+    cfg.el.textContent = cfg.current.toFixed(cfg.decimals);
+
+    const ratio = (cfg.current - cfg.min) / (cfg.max - cfg.min);
+    const clamped = Math.max(0.05, Math.min(0.95, ratio));
+    cfg.fill.style.strokeDashoffset = CIRCUMFERENCE * (1 - clamped);
+  });
+  requestAnimationFrame(tickGauge);
+}
+tickGauge();
+
+/* ========== 平滑锚点定位 ========== */
+document.querySelectorAll('.nav-menu a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    const target = document.querySelector(id);
+    if (!target) return;
+    e.preventDefault();
+    const top = target.getBoundingClientRect().top + window.scrollY - 70;
+    window.scrollTo({ top, behavior: 'smooth' });
+  });
+});
+
+/* ==================================================
+/* ==================================================
+   互动体验水缸 · Interactive Tank
+   ================================================== */
+(function initInteractiveTank() {
+  const stage = document.getElementById('tankStage');
+  if (!stage) return;
+  const canvas = document.getElementById('tankCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let W = 0, H = 0;
+  function resize() {
+    const rect = stage.getBoundingClientRect();
+    W = canvas.width = rect.width;
+    H = canvas.height = rect.height;
+  }
+  resize();
+
+  const state = {
+    waterLevel: 0.80,
+    light: 0.80,
+    bubbles: [],
+    algae: [],
+    fish: [],
+    foods: [],
+    ripples: [],
+  };
+
+  /* ---- 气泡 ---- */
+  function spawnBubble(yRandom) {
+    state.bubbles.push({
+      x: Math.random() * W,
+      y: yRandom ? Math.random() * H : H + 10,
+      r: 2 + Math.random() * 4.5,
+      v: 0.5 + Math.random() * 1.0,
+      wob: Math.random() * Math.PI * 2,
+    });
+  }
+  for (let i = 0; i < 30; i++) spawnBubble(true);
+
+  /* ---- 水藻 ---- */
+  function buildAlgae() {
+    state.algae = [];
+    for (let i = 0; i < 18; i++) {
+      state.algae.push({
+        x: Math.random() * W,
+        h: 50 + Math.random() * 110,
+        w: 4 + Math.random() * 9,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.6 + Math.random() * 1.0,
+        hue: 130 + Math.random() * 40,
+      });
+    }
+  }
+
+  /* ---- 鱼 ---- */
+  function buildFish() {
+    state.fish = [];
+    const colors = ['#f5a623', '#e86b5d', '#f2c94c', '#e08a3c', '#d4695c'];
+    for (let i = 0; i < 5; i++) {
+      state.fish.push({
+        x: Math.random() * W,
+        y: H * 0.35 + Math.random() * H * 0.35,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: (Math.random() - 0.5) * 0.3,
+        size: 13 + Math.random() * 9,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        color: colors[i % colors.length],
+        tail: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  function rebuildAll() {
+    resize();
+    buildAlgae();
+    buildFish();
+    state.bubbles = [];
+    for (let i = 0; i < 30; i++) spawnBubble(true);
+  }
+  rebuildAll();
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(rebuildAll, 180);
+  });
+
+  /* ---- 交互 ---- */
+  stage.addEventListener('mousemove', e => {
+    const rect = stage.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const waterTop = H * (1 - state.waterLevel);
+    if (my < waterTop) return;
+    if (Math.random() > 0.18) return;
+    state.ripples.push({ x: mx, y: my, r: 0, a: 0.85 });
+  });
+
+  stage.addEventListener('click', e => {
+    const rect = stage.getBoundingClientRect();
+    const fx = e.clientX - rect.left;
+    const fy = e.clientY - rect.top;
+    const waterTop = H * (1 - state.waterLevel);
+    if (fy < waterTop) return;
+    state.foods.push({ x: fx, y: fy, life: 500 });
+    state.ripples.push({ x: fx, y: fy, r: 0, a: 1 });
+  });
+
+  /* ---- 绘制 ---- */
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min((now - last) / 16.67, 3);
+    last = now;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const waterTop = H * (1 - state.waterLevel);
+    const isDay = state.light > 0.5;
+
+    /* 玻璃背景 */
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    if (isDay) {
+      skyGrad.addColorStop(0, '#eaf6fc');
+      skyGrad.addColorStop(1, '#cfe6f0');
+    } else {
+      skyGrad.addColorStop(0, '#1a3350');
+      skyGrad.addColorStop(1, '#0c1c33');
+    }
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    /* 水体 */
+    const waterGrad = ctx.createLinearGradient(0, waterTop, 0, H);
+    if (isDay) {
+      waterGrad.addColorStop(0, 'rgba(160,225,240,0.92)');
+      waterGrad.addColorStop(1, 'rgba(60,170,205,0.95)');
+    } else {
+      waterGrad.addColorStop(0, 'rgba(40,90,140,0.92)');
+      waterGrad.addColorStop(1, 'rgba(15,50,80,0.96)');
+    }
+    ctx.beginPath();
+    ctx.moveTo(0, waterTop + Math.sin(now / 700) * 2.5);
+    for (let x = 0; x <= W; x += 14) {
+      ctx.lineTo(x, waterTop + Math.sin(now / 700 + x / 70) * 3.5);
+    }
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fillStyle = waterGrad;
+    ctx.fill();
+
+    /* 裁剪到水下，绘制水藻 */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, waterTop, W, H - waterTop);
+    ctx.clip();
+
+    state.algae.forEach(a => {
+      const maxH = H - waterTop;
+      const dh = Math.min(a.h, maxH * 0.92);
+      const sway = Math.sin(now / 900 * a.speed + a.phase) * 12;
+      ctx.beginPath();
+      ctx.moveTo(a.x - a.w / 2, H);
+      ctx.quadraticCurveTo(
+        a.x - a.w / 2 + sway * 0.5, H - dh / 2,
+        a.x + sway, H - dh
+      );
+      ctx.quadraticCurveTo(
+        a.x + a.w / 2 + sway * 0.5, H - dh / 2,
+        a.x + a.w / 2, H
+      );
+      ctx.closePath();
+      ctx.fillStyle = `hsla(${a.hue}, 55%, ${isDay ? 38 : 26}%, 0.8)`;
+      ctx.fill();
+    });
+
+    /* 气泡 */
+    for (let i = state.bubbles.length - 1; i >= 0; i--) {
+      const b = state.bubbles[i];
+      b.y -= b.v * dt;
+      b.wob += 0.06 * dt;
+      if (b.y < waterTop - 3) {
+        b.y = H + 8;
+        b.x = Math.random() * W;
+        continue;
+      }
+      const wx = Math.sin(b.wob) * 3.5;
+      ctx.beginPath();
+      ctx.arc(b.x + wx, b.y, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.30)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    /* 饲料 */
+    for (let i = state.foods.length - 1; i >= 0; i--) {
+      const f = state.foods[i];
+      f.y += 0.35 * dt;
+      f.life -= dt;
+      if (f.life <= 0 || f.y > H) { state.foods.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 3.4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(232,180,80,0.95)';
+      ctx.fill();
+    }
+
+    /* 鱼 */
+    state.fish.forEach(f => {
+      let target = null, bestD = Infinity;
+      state.foods.forEach(fd => {
+        const d = Math.hypot(fd.x - f.x, fd.y - f.y);
+        if (d < bestD) { bestD = d; target = fd; }
+      });
+
+      if (target) {
+        const dx = target.x - f.x, dy = target.y - f.y;
+        const d = Math.hypot(dx, dy) || 1;
+        f.vx += (dx / d) * 0.18;
+        f.vy += (dy / d) * 0.10;
+        if (d < 8) {
+          const idx = state.foods.indexOf(target);
+          if (idx >= 0) state.foods.splice(idx, 1);
+        }
+      } else {
+        f.vx += (Math.random() - 0.5) * 0.07;
+        f.vy += (Math.random() - 0.5) * 0.03;
+      }
+
+      f.vx *= 0.97;
+      f.vy *= 0.97;
+      const sp = Math.hypot(f.vx, f.vy);
+      const maxSp = state.foods.length > 0 ? 3.2 : 1.1;
+      if (sp > maxSp) { f.vx = f.vx / sp * maxSp; f.vy = f.vy / sp * maxSp; }
+
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+
+      const minY = waterTop + f.size * 0.7;
+      const maxY = H - f.size * 0.7;
+      if (f.y < minY) { f.y = minY; f.vy = Math.abs(f.vy); }
+      if (f.y > maxY) { f.y = maxY; f.vy = -Math.abs(f.vy); }
+      if (f.x < f.size) { f.x = f.size; f.vx = Math.abs(f.vx); }
+      if (f.x > W - f.size) { f.x = W - f.size; f.vx = -Math.abs(f.vx); }
+
+      if (f.vx > 0.1) f.dir = 1;
+      else if (f.vx < -0.1) f.dir = -1;
+
+      f.tail += Math.hypot(f.vx, f.vy) * 0.35 + 0.15;
+      const tailSwing = Math.sin(f.tail) * (f.size * 0.3);
+
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.scale(f.dir, 1);
+
+      /* 尾 */
+      ctx.beginPath();
+      ctx.moveTo(-f.size * 0.85, 0);
+      ctx.lineTo(-f.size * 1.55, -f.size * 0.5 + tailSwing);
+      ctx.lineTo(-f.size * 1.55,  f.size * 0.5 + tailSwing);
+      ctx.closePath();
+      ctx.fillStyle = f.color;
+      ctx.fill();
+
+      /* 身 */
+      ctx.beginPath();
+      ctx.ellipse(0, 0, f.size, f.size * 0.55, 0, 0, Math.PI * 2);
+      ctx.fillStyle = f.color;
+      ctx.fill();
+
+      /* 眼 */
+      ctx.beginPath();
+      ctx.arc(f.size * 0.5, -f.size * 0.15, 1.9, 0, Math.PI * 2);
+      ctx.fillStyle = '#111';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(f.size * 0.55, -f.size * 0.22, 0.7, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+
+      ctx.restore();
+    });
+
+    /* 水面高光 */
+    ctx.beginPath();
+    ctx.moveTo(0, waterTop + Math.sin(now / 600) * 2);
+    for (let x = 0; x <= W; x += 12) {
+      ctx.lineTo(x, waterTop + Math.sin(now / 600 + x / 60) * 3);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.restore(); /* 结束水下裁剪 */
+
+    /* 光照 / 光柱 */
+    if (state.light > 0.05) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 3; i++) {
+        const cx = W * (0.2 + i * 0.3) + Math.sin(now / 2200 + i) * 28;
+        ctx.beginPath();
+        ctx.moveTo(cx - 40, 0);
+        ctx.lineTo(cx + 40, 0);
+        ctx.lineTo(cx + 120, H);
+        ctx.lineTo(cx - 120, H);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(255,250,220,${state.light * 0.07})`;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    /* 夜晚叠加 */
+    if (state.light < 0.5) {
+      ctx.fillStyle = `rgba(10,25,55,${(0.5 - state.light) * 1.1})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    /* 涟漪 */
+    for (let i = state.ripples.length - 1; i >= 0; i--) {
+      const p = state.ripples[i];
+      p.r += 1.7 * dt;
+      p.a -= 0.016 * dt;
+      if (p.a <= 0) { state.ripples.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,255,255,${p.a})`;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  /* ---- 控件 ---- */
+  const levelSlider = document.getElementById('waterLevelCtrl');
+  const lightSlider = document.getElementById('lightCtrl');
+  const levelVal = document.getElementById('waterLevelVal');
+  const lightVal = document.getElementById('lightVal');
+
+  levelSlider.addEventListener('input', () => {
+    state.waterLevel = levelSlider.value / 100;
+    levelVal.textContent = levelSlider.value + '%';
+  });
+  lightSlider.addEventListener('input', () => {
+    state.light = lightSlider.value / 100;
+    lightVal.textContent = lightSlider.value + '%';
+  });
+
+  /* ---- 背景音乐 ---- */
+const musicBtn = document.getElementById('musicToggle');
+let audioCtx = null;
+let musicNodes = null;
+let playing = false;
+function startMusic() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  const master = audioCtx.createGain();
+  master.gain.value = 0;
+  master.connect(audioCtx.destination);
+  master.gain.linearRampToValueAtTime(0.20, audioCtx.currentTime + 3);
+
+  // ========== 混响（用生成的脉冲响应） ==========
+  const convolver = audioCtx.createConvolver();
+  const irLen = audioCtx.sampleRate * 3.8;
+  const irBuf = audioCtx.createBuffer(2, irLen, audioCtx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = irBuf.getChannelData(ch);
+    for (let i = 0; i < irLen; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 2.6);
+    }
+  }
+  convolver.buffer = irBuf;
+
+  const wet = audioCtx.createGain();  wet.gain.value = 0.75;
+  const dry = audioCtx.createGain();  dry.gain.value = 0.45;
+  convolver.connect(wet);  wet.connect(master);
+  dry.connect(master);
+
+  // ========== 柔和化滤波（让声音变暖、变远） ==========
+  const soft = audioCtx.createBiquadFilter();
+  soft.type = 'lowpass';
+  soft.frequency.value = 1800;
+  soft.Q.value = 0.6;
+  soft.connect(dry);
+  soft.connect(convolver);
+
+  // ========== 音阶：C大调五声音阶（避免不协和音） ==========
+  const scale = [
+    261.63, 293.66, 329.63, 392.00, 440.00,
+    523.25, 587.33, 659.25, 783.99, 880.00
+  ];
+
+  // 主旋律模式：缓慢上下行，像水滴落入水中散开
+  const pattern = [0, 2, 4, 6, 7, 6, 4, 2, 3, 5, 7, 8, 6, 4, 2, 1];
+
+  // ========== 单个音符：两个轻微失谐的正弦波 = 温暖钟声 ==========
+    function playNote(freq, time, dur, vol) {
+    const o1 = audioCtx.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.value = freq;
+
+    const o2 = audioCtx.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.value = freq * 1.004;   // 轻微失谐，像水面波动
+
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(vol, time + 0.5);   // 柔和起音
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+
+    o1.connect(g);
+    o2.connect(g);
+    g.connect(soft);
+
+    o1.start(time);
+    o2.start(time);
+    o1.stop(time + dur + 0.1);
+    o2.stop(time + dur + 0.1);
+  }
+
+  // ========== 高音“水滴闪光”：偶尔点缀 ==========
+  function playDrop(freq, time) {
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, time);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.35, time + 0.12);
+
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(0.055, time + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 2.2);
+
+    o.connect(g);
+    g.connect(soft);
+    o.start(time);
+    o.stop(time + 2.3);
+  }
+
+  // ========== 持续低音垫（像远处水流） ==========
+  const padGain = audioCtx.createGain();
+  padGain.gain.value = 0;
+  padGain.gain.linearRampToValueAtTime(0.045, audioCtx.currentTime + 5);
+  padGain.connect(soft);
+
+  const padFreqs = [130.81, 196.00, 261.63];   // C3 G3 C4
+  const pads = padFreqs.map(f => {
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = f;
+    o.detune.value = (Math.random() - 0.5) * 8;
+    o.connect(padGain);
+    o.start();
+    return o;
+  });
+
+  // 低音垫缓慢起伏
+  const padLFO = audioCtx.createOscillator();
+  padLFO.frequency.value = 0.05;
+  const padLFOGain = audioCtx.createGain();
+  padLFOGain.gain.value = 0.018;
+  padLFO.connect(padLFOGain);
+  padLFOGain.connect(padGain.gain);
+  padLFO.start();
+
+  // ========== 调度器：慢节奏铺展旋律 ==========
+  let step = 0;
+  let nextTime = audioCtx.currentTime + 0.6;
+  const interval = 2.2;   // 每 2.2 秒一个音符，越慢越静谧
+
+  const scheduler = setInterval(() => {
+    const now = audioCtx.currentTime;
+    while (nextTime < now + 1.5) {
+      const idx = pattern[step % pattern.length];
+      playNote(scale[idx], nextTime, 5.0, 0.10);
+
+      // 偶尔加一颗高音水滴
+      if (Math.random() < 0.22) {
+        playDrop(scale[(idx + 4) % scale.length] * 2, nextTime + 0.5);
+      }
+
+      nextTime += interval;
+      step++;
+    }
+  }, 250);
+
+  musicNodes = { scheduler, master, pads, padLFO, padGain, soft, convolver, wet, dry };
+}
+
+  function stopMusic() {
+  if (!musicNodes) return;
+  const { scheduler, master, pads, padLFO, padGain, soft, convolver, wet, dry } = musicNodes;
+  clearInterval(scheduler);
+  try {
+    master.gain.cancelScheduledValues(audioCtx.currentTime);
+    master.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.8);
+    padGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.8);
+  } catch (e) {}
+  setTimeout(() => {
+    try {
+      pads.forEach(o => { o.stop(); o.disconnect(); });
+      padLFO.stop(); padLFO.disconnect();
+      padGain.disconnect();
+      soft.disconnect();
+      convolver.disconnect();
+      wet.disconnect();
+      dry.disconnect();
+      master.disconnect();
+    } catch (e) {}
+    musicNodes = null;
+  }, 2000);
+}
+
+musicBtn.addEventListener('click', () => {
+  if (playing) {
+    stopMusic();
+    playing = false;
+    musicBtn.textContent = '🎵 音乐 关';
+    musicBtn.classList.remove('on');
+  } else {
+    startMusic();
+    playing = true;
+    musicBtn.textContent = '🎵 音乐 开';
+    musicBtn.classList.add('on');
+  }
+});
+
+})();
+</script>
+
+</body>
+</html>
